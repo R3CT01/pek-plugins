@@ -19,11 +19,12 @@ const HesperSite = (() => {
         not_owner: 'This GitHub account is not an owner of the store.',
         bad_session: 'Your sign-in ran out. Please sign in again.',
         forbidden: 'Only the store owner can do that.',
-        id_taken: 'Another plugin already uses that id. Rename the plugin folder in your zip and try again.',
-        store_quota: 'You already have 10 plugins in the store. Remove one first.',
+        id_taken: 'Something in the store already uses that id. Rename the folder inside your zip and try again.',
+        store_quota: 'You already have 10 items in the store. Remove one first.',
         rate_limited: 'Too many uploads for now. Please try again later.',
-        too_large: 'That plugin is too large (limit 8 MB).',
-        not_found: 'That plugin is no longer in the store.',
+        too_large: 'That is too large (limit 8 MB for plugins, 6 MB for skins).',
+        not_found: 'That item is no longer in the store.',
+        bad_plugin: 'That id is not allowed (it may be reserved). Rename the folder inside the zip.',
         offline: "Couldn't reach the store. Check your connection.",
         github_not_configured: 'The store owner has not finished setting up GitHub sign-in yet.',
         site_not_configured: 'The store owner has not finished setting up the site address yet.'
@@ -95,43 +96,119 @@ const HesperSite = (() => {
         return { bundle, fp: fingerprint(bundle), raw };
     }
 
-    // ---------------- reading and checking a plugin .zip ----------------
+    // ---------------- reading and checking a plugin or skin .zip ----------------
     const slug = (t) => String(t || '').toLowerCase().replace(/\.zip$/, '').replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/g, '');
     const extOf = (p) => { const n = p.split('/').pop(); const i = n.lastIndexOf('.'); return i < 0 ? '' : n.slice(i + 1).toLowerCase(); };
     const isJunk = (p) => p.split('/').some(x => x.charAt(0) === '.' || x.toLowerCase() === '__macosx');
+    const RESERVED_PLUGINS = ['weather', 'sample_scraper', 'sample_counter', 'tmdb-discover'];
+    const RESERVED_SKINS = ['default', 'green', 'neon'];
+    const SKIN_EXT = ['json', 'css', 'md', 'txt', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'woff', 'woff2', 'ttf', 'otf'];
+    const SW_KEYS = ['bg', 'surface', 'accent', 'text', 'textMuted'];
+    const isColor = (v) => typeof v === 'string' && (/^#[0-9a-f]{3,8}$/i.test(v.trim()) || /^rgba?\(\s*[\d.\s,%]+\)$/i.test(v.trim()));
+    const parse = (files, name) => {
+        const f = files.find(x => x.path === name);
+        return JSON.parse(new TextDecoder('utf-8').decode(f.data).replace(/^\uFEFF/, ''));
+    };
+    // Where is `name` in the zip: at the top (''), inside the one folder that holds everything ('dir/'), or nowhere (null)?
+    function locate(entries, name) {
+        const has = (p) => entries.some(e => e.path === p);
+        if (has(name)) return '';
+        const tops = new Set(entries.map(e => e.path.split('/')[0]));
+        if (tops.size === 1) {
+            const top = Array.from(tops)[0];
+            if (entries.every(e => e.path.indexOf(top + '/') === 0) && has(top + '/' + name)) return top + '/';
+        }
+        return null;
+    }
+    // Mirrors the app's own rules for what a skin's stylesheet may do.
+    function checkSkinCss(path, css) {
+        const c = css.toLowerCase();
+        if (c.indexOf('\\') >= 0) return path + ' uses a backslash escape, which skins can\u2019t use';
+        const banned = ['@import', 'expression(', 'javascript:', '-moz-binding', 'behavior:', '<script', '</style'];
+        for (const b of banned) if (c.indexOf(b) >= 0) return path + ' uses something skins can\u2019t use (' + b + ')';
+        let pos = 0;
+        while ((pos = c.indexOf('url(', pos)) >= 0) {
+            const end = c.indexOf(')', pos + 4);
+            if (end < 0) return path + ' has an unfinished url()';
+            const arg = c.slice(pos + 4, end).trim().replace(/^["']+|["']+$/g, '').trim();
+            pos = end;
+            if (!arg || arg.charAt(0) === '#') continue;
+            if (/^data:(image\/|font\/|application\/(x-)?font)/.test(arg)) continue;
+            if (arg.indexOf(':') >= 0 || arg.indexOf('//') === 0) return path + ' loads something from outside the skin (' + arg.slice(0, 40) + ')';
+            if (arg.charAt(0) === '/' || arg.indexOf('..') >= 0) return path + ' points outside the skin folder (' + arg.slice(0, 40) + ')';
+        }
+        return '';
+    }
 
-    // Returns { id, name, version, author, description, permissions: [...], files, total, problems: [...] }
+    // What the thing asks for, in plain words, plus the colours of a skin. Used when uploading and when the owner reviews.
+    function describe(kind, files) {
+        const has = (n) => files.some(f => f.path === n);
+        let raw = {};
+        try { raw = parse(files, kind === 'skin' ? 'skin.json' : 'plugin.json'); } catch (e) { raw = {}; }
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) raw = {};
+        if (kind === 'skin') {
+            const tokens = (raw.tokens && typeof raw.tokens === 'object' && !Array.isArray(raw.tokens)) ? raw.tokens : {};
+            const n = Object.keys(tokens).length;
+            const colors = {};
+            SW_KEYS.forEach(k => { if (isColor(tokens[k])) colors[k] = tokens[k].trim(); });
+            return {
+                colors,
+                permissions: [
+                    n ? 'Sets ' + n + ' colours and sizes' + (has('skin.css') ? ' and adds its own styling' : '') : (has('skin.css') ? 'Adds its own styling' : null),
+                    'Only changes how PEK looks. It can\u2019t run code or reach the network.'
+                ].filter(Boolean)
+            };
+        }
+        const perm = (raw.permissions && typeof raw.permissions === 'object') ? raw.permissions : {};
+        const network = Array.isArray(perm.network) ? perm.network.filter(x => typeof x === 'string').slice(0, 20) : [];
+        return {
+            colors: {},
+            permissions: [
+                network.length ? 'Can connect to: ' + network.join(', ') : 'No network access',
+                perm.storage === true ? 'Keeps its own private data' : null,
+                perm.library === true ? 'Python code can read titles and years in the library' : null,
+                perm.torrent === true ? 'Can search for releases and start torrent streams' : null,
+                perm.favorites === true ? 'Can change Favorites' : null,
+                perm.providers === true ? 'Shows \u201cWatch on\u2026\u201d buttons' : null,
+                perm.plugins === true ? 'Can open other plugins' : null,
+                files.some(f => extOf(f.path) === 'py') ? 'Includes Python code (runs after a restart, only if it passes the app\u2019s safety scan)' : null
+            ].filter(Boolean)
+        };
+    }
+
+    // Returns { kind, id, name, version, author, description, permissions, colors, files, total, problems }
     async function prepare(file) {
         const problems = [];
         if (!file) throw new Error('No file chosen.');
-        if (file.size > 10 * 1024 * 1024) throw new Error('That file is too large to be a plugin (limit 8 MB).');
+        if (file.size > 10 * 1024 * 1024) throw new Error('That file is too large (limit 8 MB for plugins, 6 MB for skins).');
         let entries;
         try { entries = await HesperZip.read(await file.arrayBuffer()); }
         catch (e) { throw new Error('That is not a readable .zip file (' + ((e && e.message) || 'unknown error') + ').'); }
         entries = entries.filter(e => !isJunk(e.path));
         if (!entries.length) throw new Error('The zip is empty.');
-        const has = (p) => entries.some(e => e.path === p);
-        let prefix = '', folder = '';
-        if (!has('plugin.json')) {
-            const tops = new Set(entries.map(e => e.path.split('/')[0]));
-            if (tops.size === 1) {
-                const top = Array.from(tops)[0];
-                if (entries.every(e => e.path.indexOf(top + '/') === 0) && has(top + '/plugin.json')) { prefix = top + '/'; folder = top; }
-            }
-        }
-        if (!has(prefix + 'plugin.json')) throw new Error('plugin.json was not found. It must be at the top of the zip, or inside one folder.');
-        if (has(prefix + 'skin.json')) throw new Error('This zip has a skin.json. Skins are not accepted here, only plugins.');
+
+        const pluginAt = locate(entries, 'plugin.json'), skinAt = locate(entries, 'skin.json');
+        if (pluginAt !== null && skinAt !== null) throw new Error('This zip has both plugin.json and skin.json. A zip is either a plugin or a skin.');
+        if (pluginAt === null && skinAt === null) throw new Error('Neither plugin.json nor skin.json was found. It must be at the top of the zip, or inside one folder.');
+        const kind = pluginAt !== null ? 'plugin' : 'skin';
+        const prefix = kind === 'plugin' ? pluginAt : skinAt;
+        const folder = prefix ? prefix.replace(/\/$/, '') : '';
         const files = entries.map(e => ({ path: e.path.slice(prefix.length), data: e.data }));
-        if (!files.some(f => f.path === 'ui.js')) problems.push('ui.js is missing.');
+        const manifest = kind === 'plugin' ? 'plugin.json' : 'skin.json';
 
         let raw;
-        try { raw = JSON.parse(new TextDecoder('utf-8').decode(files.find(f => f.path === 'plugin.json').data).replace(/^\uFEFF/, '')); }
-        catch (e) { throw new Error('plugin.json is not valid JSON.'); }
-        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('plugin.json must be a JSON object.');
+        try { raw = parse(files, manifest); } catch (e) { throw new Error(manifest + ' is not valid JSON.'); }
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(manifest + ' must be a JSON object.');
+        if (kind === 'plugin' && !files.some(f => f.path === 'ui.js')) problems.push('ui.js is missing.');
+        if (kind === 'skin') {
+            if (typeof raw.name !== 'string' || !raw.name.trim()) problems.push('skin.json needs a \u201cname\u201d.');
+            if (raw.tokens !== undefined && (typeof raw.tokens !== 'object' || raw.tokens === null || Array.isArray(raw.tokens))) problems.push('\u201ctokens\u201d in skin.json must be an object.');
+        }
 
-        // Same limits the app's server enforces when installing.
-        if (files.length > MAX_FILES) problems.push('Too many files (limit ' + MAX_FILES + ').');
+        // The same limits the app's server enforces when installing.
+        const maxFiles = kind === 'skin' ? 60 : 200, maxTotal = (kind === 'skin' ? 6 : 8) * 1024 * 1024;
+        if (files.length > maxFiles) problems.push('Too many files (limit ' + maxFiles + ').');
         let total = 0; const seen = new Set();
         files.forEach(f => {
             total += f.data.byteLength;
@@ -140,30 +217,31 @@ const HesperSite = (() => {
             if (seen.has(f.path.toLowerCase())) problems.push('Same file twice: ' + f.path);
             seen.add(f.path.toLowerCase());
             const ext = extOf(f.path);
-            if (OK_EXT.indexOf(ext) < 0) problems.push('File type not allowed: ' + f.path);
             if (f.data.byteLength > MAX_FILE) problems.push(f.path + ' is over 2 MB.');
-            if (ext === 'py' && f.data.byteLength > MAX_PY) problems.push(f.path + ' is over 200 KB.');
+            if (kind === 'plugin') {
+                if (OK_EXT.indexOf(ext) < 0) problems.push('File type not allowed: ' + f.path);
+                if (ext === 'py' && f.data.byteLength > MAX_PY) problems.push(f.path + ' is over 200 KB.');
+            } else {
+                if (ext === 'js' || ext === 'py') problems.push('Skins can\u2019t contain code: ' + f.path);
+                else if (SKIN_EXT.indexOf(ext) < 0) problems.push('File type not allowed in skins: ' + f.path);
+                if (f.path === 'skin.json') {
+                    if (f.data.byteLength > 16 * 1024) problems.push('skin.json is too large.');
+                    if (new TextDecoder().decode(f.data).toLowerCase().indexOf('url(') >= 0) problems.push('skin.json can\u2019t use url(). Put images in skin.css and use a plain gradient for bgImage.');
+                }
+                if (ext === 'css') { const why = checkSkinCss(f.path, new TextDecoder().decode(f.data)); if (why) problems.push(why); }
+            }
         });
-        if (total > MAX_TOTAL) problems.push('The plugin is over 8 MB in total.');
-        const manifestText = new TextDecoder('utf-8').decode(files.find(f => f.path === 'plugin.json').data).toLowerCase();
-        if (manifestText.indexOf(RESERVED_HOST) >= 0) problems.push('That network host is reserved for PEK\u2019s official plugins.');
+        if (total > maxTotal) problems.push('Over ' + (kind === 'skin' ? 6 : 8) + ' MB in total.');
+        if (kind === 'plugin' && new TextDecoder().decode(files.find(f => f.path === 'plugin.json').data).toLowerCase().indexOf(RESERVED_HOST) >= 0) {
+            problems.push('That network host is reserved for PEK\u2019s official plugins.');
+        }
 
-        const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
-        const perm = (raw.permissions && typeof raw.permissions === 'object') ? raw.permissions : {};
-        const id = slug(folder) || slug(raw.name) || slug(file.name) || 'plugin';
-        const network = Array.isArray(perm.network) ? perm.network.filter(x => typeof x === 'string').slice(0, 20) : [];
-        const permissions = [
-            network.length ? 'Can connect to: ' + network.join(', ') : 'No network access',
-            perm.storage === true ? 'Keeps its own private data' : null,
-            perm.library === true ? 'Python code can read titles and years in the library' : null,
-            perm.torrent === true ? 'Can search for releases and start torrent streams' : null,
-            perm.favorites === true ? 'Can change Favorites' : null,
-            perm.providers === true ? 'Shows \u201cWatch on\u2026\u201d buttons' : null,
-            perm.plugins === true ? 'Can open other plugins' : null,
-            files.some(f => extOf(f.path) === 'py') ? 'Includes Python code (runs after a restart, only if it passes the app\u2019s safety scan)' : null
-        ].filter(Boolean);
-        return { id, name: str(raw.name, 80) || id, version: str(raw.version, 40), author: str(raw.author, 80),
-                 description: str(raw.description, 200), permissions, files, total, problems };
+        const str = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
+        const id = slug(folder) || slug(raw.name) || slug(file.name) || kind;
+        if ((kind === 'skin' ? RESERVED_SKINS : RESERVED_PLUGINS).indexOf(id) >= 0) problems.push('\u201c' + id + '\u201d is the id of one that ships with PEK. Rename the folder inside the zip.');
+        const d = describe(kind, files);
+        return { kind, id, name: str(raw.name, 80) || id, version: str(raw.version, 40), author: str(raw.author, 80),
+                 description: str(raw.description, 200), permissions: d.permissions, colors: d.colors, files, total, problems };
     }
 
     // ---------------- uploading and downloading ----------------
@@ -178,7 +256,8 @@ const HesperSite = (() => {
         }
         return api('POST', owner ? base + 'commit' : base + 'submit', {
             id: prep.id, fp: packed.fp, total, size: packed.raw,
-            name: prep.name, version: prep.version, author: prep.author, description: prep.description
+            name: prep.name, version: prep.version, author: prep.author, description: prep.description,
+            kind: prep.kind === 'skin' ? 'skin' : 'plugin'
         });
     }
 
@@ -203,9 +282,15 @@ const HesperSite = (() => {
         kids.flat().forEach(c => { if (c != null && c !== false) el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
         return el;
     }
+    const swatches = (colors) => {
+        const keys = Object.keys(colors || {});
+        if (!keys.length) return null;
+        return h('div', { class: 'swatches' }, keys.map(k => h('span', { class: 'sw', title: k, style: 'background:' + colors[k] })));
+    };
+    const kindPill = (kind) => h('span', { class: 'pill kind' }, kind === 'skin' ? 'Skin' : 'Plugin');
     const avatar = (name, big) => h('div', { class: 'avatar' + (big ? ' big' : '') }, (String(name || '?').trim().charAt(0) || '?').toUpperCase());
     const kb = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
     const when = (ms) => new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
-    return { api, signIn, signOut, signedIn, hashError: () => hashError, say, prepare, upload, download, h, avatar, kb, when, extOf, TEXT_EXT, pack };
+    return { api, signIn, signOut, signedIn, hashError: () => hashError, say, prepare, upload, download, h, avatar, swatches, kindPill, describe, kb, when, extOf, TEXT_EXT, pack };
 })();

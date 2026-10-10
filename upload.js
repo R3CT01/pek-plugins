@@ -1,6 +1,6 @@
 // Upload page: sign in with GitHub, pick a plugin .zip, check it, send it for review.
 (() => {
-    const { h, avatar, kb, api, say } = HesperSite;
+    const { h, avatar, swatches, kindPill, kb, api, say } = HesperSite;
     const app = document.getElementById('app');
     let me = null, prep = null, busy = false, note = null, mine = [];
 
@@ -58,8 +58,8 @@
         const input = h('input', { type: 'file', accept: '.zip,application/zip', style: 'display:none', onchange: (e) => { if (e.target.files[0]) choose(e.target.files[0]); } });
         const drop = h('div', { class: 'card drop' },
             h('div', { class: 'big-icon' }, '\ud83d\udce6'),
-            h('p', {}, h('b', {}, 'Drop your plugin .zip here')),
-            h('p', { class: 'muted' }, 'It needs plugin.json and ui.js, at the top of the zip or inside one folder. The folder name becomes the plugin id.'),
+            h('p', {}, h('b', {}, 'Drop your plugin or skin .zip here')),
+            h('p', { class: 'muted' }, 'A plugin needs plugin.json and ui.js. A skin needs skin.json. Put them at the top of the zip or inside one folder; the folder name becomes the id.'),
             input, h('button', { class: 'primary', onclick: () => input.click(), disabled: busy ? 'disabled' : null }, 'Choose .zip'));
         ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
         ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
@@ -68,10 +68,11 @@
 
         if (prep) {
             kids.push(h('div', { class: 'card' },
-                h('div', { class: 'head' }, avatar(prep.name, true), h('div', {}, h('h2', {}, prep.name),
+                h('div', { class: 'head' }, avatar(prep.name, true), h('div', {}, h('h2', {}, prep.name, ' ', kindPill(prep.kind)),
                     h('div', { class: 'muted' }, [prep.version ? 'Version ' + prep.version : '', 'id: ' + prep.id, prep.files.length + ' files', kb(prep.total)].filter(Boolean).join(' \u00b7 ')))),
                 prep.description ? h('p', {}, prep.description) : null,
-                h('p', {}, h('b', {}, 'What it asks for:')),
+                swatches(prep.colors),
+                h('p', {}, h('b', {}, prep.kind === 'skin' ? 'What it changes:' : 'What it asks for:')),
                 h('ul', {}, prep.permissions.map(p => h('li', {}, p))),
                 prep.problems.length ? h('div', { class: 'msg bad' }, h('b', {}, 'Fix these first:'), h('ul', {}, prep.problems.map(p => h('li', {}, p)))) : null,
                 h('p', { class: 'muted' }, 'The owner sees this same list when reviewing, and PEK shows it again to every person who installs the plugin.'),
@@ -79,12 +80,12 @@
         }
 
         if (mine.length) {
-            kids.push(h('h2', {}, 'Your plugins'));
+            kids.push(h('h2', {}, 'Your uploads'));
             mine.forEach(it => kids.push(h('div', { class: 'card row' },
-                h('div', { class: 'ident' }, avatar(it.name), h('div', {}, h('b', {}, it.name), ' ', h('span', { class: 'pill ' + it.status }, it.status === 'approved' ? 'live' : 'waiting for review'),
+                h('div', { class: 'ident' }, avatar(it.name), h('div', {}, h('b', {}, it.name), ' ', kindPill(it.kind), ' ', h('span', { class: 'pill ' + it.status }, it.status === 'approved' ? 'live' : 'waiting for review'),
                     h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', it.shelf === 'official' ? 'official' : 'community', HesperSite.when(it.updated)].filter(Boolean).join(' \u00b7 ')))),
                 h('button', { class: 'danger', onclick: () => remove(it), disabled: busy ? 'disabled' : null }, 'Remove'))));
-            kids.push(h('p', { class: 'muted' }, 'To update a plugin, upload the new zip with the same folder name. It goes back to waiting for review.'));
+            kids.push(h('p', { class: 'muted' }, 'To update one, upload the new zip with the same folder name. It goes back to waiting for review.'));
         }
         app.replaceChildren(...kids);
     }
