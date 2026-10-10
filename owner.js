@@ -1,6 +1,6 @@
 // Owner page: review community uploads, publish official plugins, remove anything.
 (() => {
-    const { h, kb, api } = HesperSite;
+    const { h, avatar, kb, api } = HesperSite;
     const app = document.getElementById('app');
     let me = null, tab = 'review', items = [], review = null, busy = false, note = null, prep = null, viewing = null;
     const msg = (kind, text) => ({ kind, text });
@@ -82,8 +82,8 @@
         if (review) {
             const it = review.item;
             kids.push(h('div', { class: 'card' },
-                h('h2', { style: 'margin-top:0' }, it.name),
-                h('p', { class: 'muted' }, [it.version ? 'v' + it.version : '', 'id: ' + it.id, 'uploaded by @' + it.author, kb(it.size), HesperSite.when(it.updated)].filter(Boolean).join(' \u00b7 ')),
+                h('div', { class: 'head' }, avatar(it.name, true), h('div', {}, h('h2', {}, it.name),
+                    h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', 'id: ' + it.id, 'uploaded by @' + it.author, kb(it.size), HesperSite.when(it.updated)].filter(Boolean).join(' \u00b7 ')))),
                 it.description ? h('p', {}, it.description) : null,
                 h('p', {}, h('b', {}, 'What it asks for:')), h('ul', {}, review.perms.map(p => h('li', {}, p))),
                 h('p', {}, h('b', {}, 'Files (read the code before approving):')),
@@ -103,18 +103,18 @@
         if (tab === 'review') {
             if (!pending.length) kids.push(h('p', { class: 'muted' }, 'Nothing is waiting.'));
             pending.forEach(it => kids.push(h('div', { class: 'card row' },
-                h('div', {}, h('b', {}, it.name), h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', 'by @' + it.author, kb(it.size), HesperSite.when(it.updated)].filter(Boolean).join(' \u00b7 '))),
+                h('div', { class: 'ident' }, avatar(it.name), h('div', {}, h('b', {}, it.name), h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', 'by @' + it.author, kb(it.size), HesperSite.when(it.updated)].filter(Boolean).join(' \u00b7 ')))),
                 h('button', { class: 'primary', disabled: busy ? 'disabled' : null, onclick: () => openReview(it) }, 'Review'))));
         } else if (tab === 'live') {
             const live = items.filter(i => i.status === 'approved');
             if (!live.length) kids.push(h('p', { class: 'muted' }, 'Nothing is published yet.'));
             live.forEach(it => kids.push(h('div', { class: 'card row' },
-                h('div', {}, h('b', {}, it.name), ' ', h('span', { class: 'pill approved' }, it.shelf === 'official' ? 'official' : 'community'),
-                    h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', 'by @' + it.author, kb(it.size)].filter(Boolean).join(' \u00b7 '))),
+                h('div', { class: 'ident' }, avatar(it.name), h('div', {}, h('b', {}, it.name), ' ', h('span', { class: 'pill approved' }, it.shelf === 'official' ? 'official' : 'community'),
+                    h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', 'by @' + it.author, kb(it.size)].filter(Boolean).join(' \u00b7 ')))),
                 h('button', { class: 'danger', disabled: busy ? 'disabled' : null, onclick: () => { if (confirm('Take \u201c' + it.name + '\u201d out of the store?')) run(() => api('POST', '/v1/store/owner/remove', { id: it.id }), 'Removed.'); } }, 'Remove'))));
         } else {
             const input = h('input', { type: 'file', accept: '.zip,application/zip', style: 'display:none', onchange: (e) => { if (e.target.files[0]) pickOfficial(e.target.files[0]); } });
-            kids.push(h('div', { class: 'card drop' }, h('p', {}, 'Publish a plugin to the PEK Official shelf. It goes live straight away. Uploading the same folder name again replaces it.'),
+            kids.push(h('div', { class: 'card drop' }, h('div', { class: 'big-icon' }, '\ud83d\ude80'), h('p', {}, 'Publish a plugin to the PEK Official shelf. It goes live straight away. Uploading the same folder name again replaces it.'),
                 input, h('button', { class: 'primary', onclick: () => input.click() }, 'Choose .zip')));
             if (prep) kids.push(h('div', { class: 'card' },
                 h('h2', { style: 'margin-top:0' }, prep.name),

@@ -22,4 +22,3 @@ The site holds no secrets. Sign-in happens on your worker, and GitHub's client s
   (lowercase letters, digits, `-` and `_`); a zip without a folder gets its id from the plugin's name.
 - Same limits as installing in PEK: 200 files, 2 MB per file, 8 MB total, no hidden files, `.py` only up to 200 KB.
 - To update a plugin, upload the new zip with the same folder name.
-# pek-plugins

@@ -198,13 +198,14 @@ const HesperSite = (() => {
         Object.keys(attrs || {}).forEach(k => {
             if (k === 'class') el.className = attrs[k];
             else if (k.indexOf('on') === 0) el.addEventListener(k.slice(2), attrs[k]);
-            else el.setAttribute(k, attrs[k]);
+            else if (attrs[k] != null && attrs[k] !== false) el.setAttribute(k, attrs[k]);   // null/false = leave the attribute off
         });
         kids.flat().forEach(c => { if (c != null && c !== false) el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
         return el;
     }
+    const avatar = (name, big) => h('div', { class: 'avatar' + (big ? ' big' : '') }, (String(name || '?').trim().charAt(0) || '?').toUpperCase());
     const kb = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
     const when = (ms) => new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
-    return { api, signIn, signOut, signedIn, hashError: () => hashError, say, prepare, upload, download, h, kb, when, extOf, TEXT_EXT, pack };
+    return { api, signIn, signOut, signedIn, hashError: () => hashError, say, prepare, upload, download, h, avatar, kb, when, extOf, TEXT_EXT, pack };
 })();
