@@ -65,7 +65,7 @@
         if (review) {
             const it = review.item;
             kids.push(h('div', { class: 'card' },
-                h('div', { class: 'head' }, avatar(it.name, true), h('div', {}, h('h2', {}, it.name, ' ', kindPill(it.kind)),
+                h('div', { class: 'head' }, avatar(it.name, true, it.icon), h('div', {}, h('h2', {}, it.name, ' ', kindPill(it.kind)),
                     h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', 'id: ' + it.id, 'uploaded by @' + it.author, kb(it.size), HesperSite.when(it.updated)].filter(Boolean).join(' \u00b7 ')))),
                 it.description ? h('p', {}, it.description) : null,
                 swatches(review.colors),
@@ -87,13 +87,13 @@
         if (tab === 'review') {
             if (!pending.length) kids.push(h('p', { class: 'muted' }, 'Nothing is waiting.'));
             pending.forEach(it => kids.push(h('div', { class: 'card row' },
-                h('div', { class: 'ident' }, avatar(it.name), h('div', {}, h('b', {}, it.name), ' ', kindPill(it.kind), h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', 'by @' + it.author, kb(it.size), HesperSite.when(it.updated)].filter(Boolean).join(' \u00b7 ')))),
+                h('div', { class: 'ident' }, avatar(it.name, false, it.icon), h('div', {}, h('b', {}, it.name), ' ', kindPill(it.kind), h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', 'by @' + it.author, kb(it.size), HesperSite.when(it.updated)].filter(Boolean).join(' \u00b7 ')))),
                 h('button', { class: 'primary', disabled: busy ? 'disabled' : null, onclick: () => openReview(it) }, 'Review'))));
         } else if (tab === 'live') {
             const live = items.filter(i => i.status === 'approved');
             if (!live.length) kids.push(h('p', { class: 'muted' }, 'Nothing is published yet.'));
             live.forEach(it => kids.push(h('div', { class: 'card row' },
-                h('div', { class: 'ident' }, avatar(it.name), h('div', {}, h('b', {}, it.name), ' ', kindPill(it.kind), ' ', h('span', { class: 'pill approved' }, it.shelf === 'official' ? 'official' : 'community'),
+                h('div', { class: 'ident' }, avatar(it.name, false, it.icon), h('div', {}, h('b', {}, it.name), ' ', kindPill(it.kind), ' ', h('span', { class: 'pill approved' }, it.shelf === 'official' ? 'official' : 'community'),
                     h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', 'by @' + it.author, kb(it.size)].filter(Boolean).join(' \u00b7 ')))),
                 h('button', { class: 'danger', disabled: busy ? 'disabled' : null, onclick: () => { if (confirm('Take \u201c' + it.name + '\u201d out of the store?')) run(() => api('POST', '/v1/store/owner/remove', { id: it.id }), 'Removed.'); } }, 'Remove'))));
         } else {

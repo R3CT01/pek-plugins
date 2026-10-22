@@ -246,7 +246,14 @@ const HesperSite = (() => {
         const id = slug(folder) || slug(raw.name) || slug(file.name) || kind;
         if (!owner && (kind === 'skin' ? RESERVED_SKINS : RESERVED_PLUGINS).indexOf(id) >= 0) problems.push('\u201c' + id + '\u201d is the id of one that ships with PEK. Rename the folder inside the zip.');
         const d = describe(kind, files);
-        return { kind, id, name: str(raw.name, 80) || id, version: str(raw.version, 40), author: str(raw.author, 80),
+        let icon = '';
+        if (kind === 'plugin' && typeof raw.icon === 'string') {
+            const m = /\.(png|jpe?g|webp)$/i.exec(raw.icon), f = files.find(x => x.path === raw.icon);
+            if (m && f && f.data.byteLength <= 60000) icon = 'data:image/' + (m[1].toLowerCase() === 'jpg' ? 'jpeg' : m[1].toLowerCase()) + ';base64,' + toB64(f.data);
+            else if (f && f.data.byteLength > 60000) problems.push('The icon is over 60 KB, so the store will not show it. Use a smaller picture.');
+            else if (!f) problems.push('plugin.json names the icon \u201c' + raw.icon + '\u201d but that file is not in the zip.');
+        }
+        return { icon, kind, id, name: str(raw.name, 80) || id, version: str(raw.version, 40), author: str(raw.author, 80),
                  description: str(raw.description, 200), permissions: d.permissions, colors: d.colors, files, total, problems };
     }
 
@@ -294,7 +301,19 @@ const HesperSite = (() => {
         return h('div', { class: 'swatches' }, keys.map(k => h('span', { class: 'sw', title: k, style: 'background:' + colors[k] })));
     };
     const kindPill = (kind) => h('span', { class: 'pill kind' }, kind === 'skin' ? 'Skin' : 'Plugin');
-    const avatar = (name, big) => h('div', { class: 'avatar' + (big ? ' big' : '') }, (String(name || '?').trim().charAt(0) || '?').toUpperCase());
+    // icon = a data:image/... address (the store sends one with each plugin; prepare() makes one from the zip). Without it, the first letter.
+    const avatar = (name, big, icon) => {
+        const letter = (String(name || '?').trim().charAt(0) || '?').toUpperCase();
+        const cls = 'avatar' + (big ? ' big' : '');
+        if (typeof icon === 'string' && icon.indexOf('data:image/') === 0) {
+            const box = h('div', { class: cls + ' pic' });
+            const img = h('img', { src: icon, alt: '' });
+            img.addEventListener('error', () => { box.className = cls; box.textContent = letter; });
+            box.appendChild(img);
+            return box;
+        }
+        return h('div', { class: cls }, letter);
+    };
     const kb = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
     const when = (ms) => new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 

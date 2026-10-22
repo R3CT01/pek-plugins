@@ -68,7 +68,7 @@
 
         if (prep) {
             kids.push(h('div', { class: 'card' },
-                h('div', { class: 'head' }, avatar(prep.name, true), h('div', {}, h('h2', {}, prep.name, ' ', kindPill(prep.kind)),
+                h('div', { class: 'head' }, avatar(prep.name, true, prep.icon), h('div', {}, h('h2', {}, prep.name, ' ', kindPill(prep.kind)),
                     h('div', { class: 'muted' }, [prep.version ? 'Version ' + prep.version : '', 'id: ' + prep.id, prep.files.length + ' files', kb(prep.total)].filter(Boolean).join(' \u00b7 ')))),
                 prep.description ? h('p', {}, prep.description) : null,
                 swatches(prep.colors),
@@ -82,7 +82,7 @@
         if (mine.length) {
             kids.push(h('h2', {}, 'Your uploads'));
             mine.forEach(it => kids.push(h('div', { class: 'card row' },
-                h('div', { class: 'ident' }, avatar(it.name), h('div', {}, h('b', {}, it.name), ' ', kindPill(it.kind), ' ', h('span', { class: 'pill ' + it.status }, it.status === 'approved' ? 'live' : 'waiting for review'),
+                h('div', { class: 'ident' }, avatar(it.name, false, it.icon), h('div', {}, h('b', {}, it.name), ' ', kindPill(it.kind), ' ', h('span', { class: 'pill ' + it.status }, it.status === 'approved' ? 'live' : 'waiting for review'),
                     h('div', { class: 'muted' }, [it.version ? 'v' + it.version : '', it.shelf === 'official' ? 'official' : 'community', HesperSite.when(it.updated)].filter(Boolean).join(' \u00b7 ')))),
                 h('button', { class: 'danger', onclick: () => remove(it), disabled: busy ? 'disabled' : null }, 'Remove'))));
             kids.push(h('p', { class: 'muted' }, 'To update one, upload the new zip with the same folder name. It goes back to waiting for review.'));
