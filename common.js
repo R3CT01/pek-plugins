@@ -238,7 +238,7 @@ const HesperSite = (() => {
             }
         });
         if (total > maxTotal) problems.push('Over ' + (kind === 'skin' ? 6 : 8) + ' MB in total.');
-        if (kind === 'plugin' && new TextDecoder().decode(files.find(f => f.path === 'plugin.json').data).toLowerCase().indexOf(RESERVED_HOST) >= 0) {
+        if (!owner && kind === 'plugin' && new TextDecoder().decode(files.find(f => f.path === 'plugin.json').data).toLowerCase().indexOf(RESERVED_HOST) >= 0) {
             problems.push('That network host is reserved for PEK\u2019s official plugins.');
         }
 
