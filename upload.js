@@ -59,7 +59,7 @@
         const drop = h('div', { class: 'card drop' },
             h('div', { class: 'big-icon' }, '\ud83d\udce6'),
             h('p', {}, h('b', {}, 'Drop your plugin or skin .zip here')),
-            h('p', { class: 'muted' }, 'A plugin needs plugin.json and ui.js. A skin needs skin.json. Put them at the top of the zip or inside one folder; the folder name becomes the id.'),
+            h('p', { class: 'muted' }, 'A plugin needs plugin.json and screen.py (Python only, no .js files), and a \"flutter\" entry in plugin.json. A skin needs skin.json. Put them at the top of the zip or inside one folder; the folder name becomes the id.'),
             input, h('button', { class: 'primary', onclick: () => input.click(), disabled: busy ? 'disabled' : null }, 'Choose .zip'));
         ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
         ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));

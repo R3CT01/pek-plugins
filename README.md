@@ -18,9 +18,10 @@ The site holds no secrets. Sign-in happens on your worker, and GitHub's client s
 
 ## Notes for authors
 
-- The zip needs `plugin.json` and `ui.js`, at the top or inside one folder. **The folder name becomes the plugin id**
+- The zip needs `plugin.json` (with a `"flutter": {"screen": "screen.py"}` entry) and `screen.py`, no `.js` files, at the top or inside one folder. **The folder name becomes the plugin id**
   (lowercase letters, digits, `-` and `_`); a zip without a folder gets its id from the plugin's name.
 - Same limits as installing in PEK: 200 files, 2 MB per file, 8 MB total, no hidden files, `.py` only up to 200 KB.
+- Built-in ids (`weather`, `tmdb-discover`, ...) are blocked on the public page; the owner page allows them so the built-in plugins can update from the Official shelf.
 - To update a plugin, upload the new zip with the same folder name.
 
 ## Skins

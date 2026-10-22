@@ -42,7 +42,7 @@
 
     async function pickOfficial(file) {
         note = null; prep = null; draw();
-        try { prep = await HesperSite.prepare(file); } catch (e) { note = msg('bad', e.message); }
+        try { prep = await HesperSite.prepare(file, true); } catch (e) { note = msg('bad', e.message); }
         draw();
     }
 

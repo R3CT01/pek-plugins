@@ -178,7 +178,8 @@ const HesperSite = (() => {
     }
 
     // Returns { kind, id, name, version, author, description, permissions, colors, files, total, problems }
-    async function prepare(file) {
+    // owner = true (the owner page): built-in ids such as weather are allowed, because the built-in plugins update from the Official shelf.
+    async function prepare(file, owner) {
         const problems = [];
         if (!file) throw new Error('No file chosen.');
         if (file.size > 10 * 1024 * 1024) throw new Error('That file is too large (limit 8 MB for plugins, 6 MB for skins).');
@@ -200,7 +201,12 @@ const HesperSite = (() => {
         let raw;
         try { raw = parse(files, manifest); } catch (e) { throw new Error(manifest + ' is not valid JSON.'); }
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(manifest + ' must be a JSON object.');
-        if (kind === 'plugin' && !files.some(f => f.path === 'ui.js')) problems.push('ui.js is missing.');
+        if (kind === 'plugin') {
+            // Same rules as the app: Python only, with a screen.py for the Flutter UI.
+            files.filter(f => /\.m?js$/i.test(f.path)).forEach(f => problems.push('JavaScript is no longer accepted (' + f.path + '). Plugins are Python only.'));
+            if (!files.some(f => f.path === 'screen.py')) problems.push('screen.py is missing.');
+            if (!raw.flutter || typeof raw.flutter !== 'object' || Array.isArray(raw.flutter)) problems.push('plugin.json needs a \u201cflutter\u201d entry, for example {\"screen\": \"screen.py\"}.');
+        }
         if (kind === 'skin') {
             if (typeof raw.name !== 'string' || !raw.name.trim()) problems.push('skin.json needs a \u201cname\u201d.');
             if (raw.tokens !== undefined && (typeof raw.tokens !== 'object' || raw.tokens === null || Array.isArray(raw.tokens))) problems.push('\u201ctokens\u201d in skin.json must be an object.');
@@ -219,7 +225,7 @@ const HesperSite = (() => {
             const ext = extOf(f.path);
             if (f.data.byteLength > MAX_FILE) problems.push(f.path + ' is over 2 MB.');
             if (kind === 'plugin') {
-                if (OK_EXT.indexOf(ext) < 0) problems.push('File type not allowed: ' + f.path);
+                if (ext !== 'js' && OK_EXT.indexOf(ext) < 0) problems.push('File type not allowed: ' + f.path);
                 if (ext === 'py' && f.data.byteLength > MAX_PY) problems.push(f.path + ' is over 200 KB.');
             } else {
                 if (ext === 'js' || ext === 'py') problems.push('Skins can\u2019t contain code: ' + f.path);
@@ -238,7 +244,7 @@ const HesperSite = (() => {
 
         const str = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
         const id = slug(folder) || slug(raw.name) || slug(file.name) || kind;
-        if ((kind === 'skin' ? RESERVED_SKINS : RESERVED_PLUGINS).indexOf(id) >= 0) problems.push('\u201c' + id + '\u201d is the id of one that ships with PEK. Rename the folder inside the zip.');
+        if (!owner && (kind === 'skin' ? RESERVED_SKINS : RESERVED_PLUGINS).indexOf(id) >= 0) problems.push('\u201c' + id + '\u201d is the id of one that ships with PEK. Rename the folder inside the zip.');
         const d = describe(kind, files);
         return { kind, id, name: str(raw.name, 80) || id, version: str(raw.version, 40), author: str(raw.author, 80),
                  description: str(raw.description, 200), permissions: d.permissions, colors: d.colors, files, total, problems };
